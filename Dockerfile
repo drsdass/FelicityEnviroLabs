@@ -1,7 +1,7 @@
-# Use an official Python runtime as a parent image
+# We are moving from 3.13 to 3.11 for better stability with LIMS plugins
 FROM python:3.11-slim
 
-# Install system dependencies for Cairo (Graphics) and PDF generation
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libcairo2-dev \
     pkg-config \
@@ -11,18 +11,17 @@ RUN apt-get update && apt-get install -y \
     libpango1.0-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
 WORKDIR /app
 
-# Install Python dependencies
+# Upgrade pip to ensure it can find the right packages
+RUN pip install --upgrade pip
+
 COPY requirements.txt .
+# Adding --no-cache-dir saves space on Render
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code
 COPY . .
 
-# Set environment variables for production
 ENV PORT=10000
-
-# Start the application (Standard for FastAPI/Felicity)
+# Ensure your start command matches your LIMS (e.g., main:app or app.main:app)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
