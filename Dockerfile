@@ -1,17 +1,16 @@
-# Alpine is much smaller and faster for Render Free Tier
-FROM python:3.11-alpine
+# STAGE 1: The Builder (Where the heavy lifting happens)
+FROM python:3.11-slim as builder
 
-# Install the absolute bare minimum for LIMS graphics
-RUN apk add --no-cache \
+# Install build tools and graphics libraries
+RUN apt-get update && apt-get install -y \
     gcc \
-    musl-dev \
-    python3-dev \
-    cairo-dev \
-    pango-dev \
     g++ \
-    pkgconfig \
-    jpeg-dev \
-    zlib-dev
+    git \
+    libcairo2-dev \
+    pkg-config \
+    python3-dev \
+    libpango1.0-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -19,11 +18,28 @@ WORKDIR /app
 RUN pip install --upgrade pip
 COPY requirements.txt .
 
-# Use --prefer-binary to stop Render from trying to 'compile' heavy code
-RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+# Use --prefer-binary to pull pre-built versions of Pandas/Cryptography
+RUN pip install --user --no-cache-dir --prefer-binary -r requirements.txt
 
+# STAGE 2: The Final Runner (This stays under the RAM limit)
+FROM python:3.11-slim
+
+# Install ONLY the graphics libraries needed for PDFs
+RUN apt-get update && apt-get install -y \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the installed libraries from the builder
+COPY --from=builder /root/.local /root/.local
 COPY . .
 
+# Ensure the app can find the libraries
+ENV PATH=/root/.local/bin:$PATH
 ENV PORT=10000
-# IMPORTANT: Double check if your file is named main.py or app.py
+
+# Start command
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
