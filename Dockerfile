@@ -1,27 +1,29 @@
-# Use 3.11 for maximum compatibility with LIMS libraries
-FROM python:3.11-slim
+# Alpine is much smaller and faster for Render Free Tier
+FROM python:3.11-alpine
 
-# Install ONLY the essential lab graphics libraries (skips the 'fluff')
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcairo2-dev \
-    pkg-config \
+# Install the absolute bare minimum for LIMS graphics
+RUN apk add --no-cache \
     gcc \
-    g++ \
+    musl-dev \
     python3-dev \
-    libpango1.0-dev \
-    && rm -rf /var/lib/apt/lists/*
+    cairo-dev \
+    pango-dev \
+    g++ \
+    pkgconfig \
+    jpeg-dev \
+    zlib-dev
 
 WORKDIR /app
 
-# Upgrade pip first
+# Step-by-step install to avoid memory spikes
 RUN pip install --upgrade pip
-
-# Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy your LIMS code
+# Use --prefer-binary to stop Render from trying to 'compile' heavy code
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+
 COPY . .
 
-# IMPORTANT: Adjust 'main:app' if your entry file is named differently
+ENV PORT=10000
+# IMPORTANT: Double check if your file is named main.py or app.py
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
